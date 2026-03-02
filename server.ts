@@ -1,10 +1,11 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import axios from "axios";
-import { createProxyMiddleware } from "http-proxy-middleware";
+import cors from "cors";
 
 async function startServer() {
   const app = express();
+  app.use(cors());
   const PORT = 3000;
 
   // API Route to fetch M3U content (bypasses CORS)

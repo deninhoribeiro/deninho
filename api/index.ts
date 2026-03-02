@@ -1,7 +1,9 @@
 import express from "express";
 import axios from "axios";
+import cors from "cors";
 
 const app = express();
+app.use(cors());
 
 // API Route to fetch M3U content (bypasses CORS)
 app.get("/api/m3u", async (req, res) => {
@@ -29,6 +31,7 @@ app.get("/api/proxy", async (req, res) => {
   const targetUrl = req.query.url as string;
   if (!targetUrl) return res.status(400).send("URL required");
 
+  // List of common IPTV player User-Agents
   const userAgents = [
     'IPTVSmartersPlayer',
     'VLC/3.0.18 LibVLC/3.0.18',
@@ -51,6 +54,7 @@ app.get("/api/proxy", async (req, res) => {
         timeout: 30000,
         validateStatus: (status) => status < 500,
       });
+
       return response;
     } catch (error) {
       if (attempt < 2) {
@@ -72,7 +76,6 @@ app.get("/api/proxy", async (req, res) => {
     res.set('Content-Type', contentType);
     res.set('Access-Control-Allow-Origin', '*');
     res.set('Cache-Control', 'no-cache');
-    res.set('X-Proxy-Attempt', 'Success');
 
     if (isM3U8) {
       let dataBuffer: Buffer;

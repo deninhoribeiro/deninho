@@ -147,7 +147,16 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (m3uUrl && !showInput) {
+    // Handle URL parameters
+    const params = new URLSearchParams(window.location.search);
+    const urlParam = params.get('url');
+    const userParam = params.get('user');
+
+    if (urlParam) {
+      setM3uUrl(urlParam);
+      if (userParam) setUsername(userParam);
+      handleLoadList(urlParam, true);
+    } else if (m3uUrl && !showInput) {
       handleLoadList(m3uUrl, false);
     }
   }, []);
