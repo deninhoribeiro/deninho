@@ -36,14 +36,105 @@ export default function App() {
     localStorage.getItem('iptv_m3u_url') ? 'live' : 'dashboard'
   );
   const firstCategoryRef = useRef<HTMLButtonElement>(null);
+  const dashboardLiveRef = useRef<HTMLButtonElement>(null);
+  const channelListRef = useRef<HTMLDivElement>(null);
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const infoPanelRef = useRef<HTMLDivElement>(null);
+  const loginUserRef = useRef<HTMLInputElement>(null);
+  const loginUrlRef = useRef<HTMLInputElement>(null);
+  const loginSubmitRef = useRef<HTMLButtonElement>(null);
+  const loginDemoRef = useRef<HTMLButtonElement>(null);
+
+  // Spatial Navigation for TV Remote
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const active = document.activeElement;
+      if (!active) return;
+
+      if (view === 'live') {
+        if (e.key === 'ArrowRight') {
+          // If in sidebar, move to channel list
+          if (sidebarRef.current?.contains(active)) {
+            e.preventDefault();
+            const firstChannel = channelListRef.current?.querySelector('button');
+            (firstChannel as HTMLElement)?.focus();
+          } 
+          // If in channel list, move to info panel
+          else if (channelListRef.current?.contains(active)) {
+            e.preventDefault();
+            const playButton = infoPanelRef.current?.querySelector('button');
+            (playButton as HTMLElement)?.focus();
+          }
+        } else if (e.key === 'ArrowLeft') {
+          // If in info panel, move to channel list
+          if (infoPanelRef.current?.contains(active)) {
+            e.preventDefault();
+            const selectedChannelBtn = channelListRef.current?.querySelector('[data-selected="true"]');
+            if (selectedChannelBtn) {
+              (selectedChannelBtn as HTMLElement)?.focus();
+            } else {
+              const firstChannel = channelListRef.current?.querySelector('button');
+              (firstChannel as HTMLElement)?.focus();
+            }
+          }
+          // If in channel list, move to sidebar
+          else if (channelListRef.current?.contains(active)) {
+            e.preventDefault();
+            const activeCategory = sidebarRef.current?.querySelector('[data-active="true"]');
+            (activeCategory as HTMLElement)?.focus();
+          }
+        }
+      } else if (view === 'dashboard') {
+        if (e.key === 'ArrowDown' && active === dashboardLiveRef.current) {
+          e.preventDefault();
+          const nextBtn = document.querySelector('[data-dash="movies"]') as HTMLElement;
+          nextBtn?.focus();
+        } else if (e.key === 'ArrowUp' && (active.getAttribute('data-dash') === 'movies' || active.getAttribute('data-dash') === 'series')) {
+          e.preventDefault();
+          dashboardLiveRef.current?.focus();
+        } else if (e.key === 'ArrowRight' && active.getAttribute('data-dash') === 'movies') {
+          e.preventDefault();
+          const nextBtn = document.querySelector('[data-dash="series"]') as HTMLElement;
+          nextBtn?.focus();
+        } else if (e.key === 'ArrowLeft' && active.getAttribute('data-dash') === 'series') {
+          e.preventDefault();
+          const prevBtn = document.querySelector('[data-dash="movies"]') as HTMLElement;
+          prevBtn?.focus();
+        }
+      } else if (showInput) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          if (active === loginUserRef.current) loginUrlRef.current?.focus();
+          else if (active === loginUrlRef.current) loginSubmitRef.current?.focus();
+          else if (active === loginSubmitRef.current) loginDemoRef.current?.focus();
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          if (active === loginDemoRef.current) loginSubmitRef.current?.focus();
+          else if (active === loginSubmitRef.current) loginUrlRef.current?.focus();
+          else if (active === loginUrlRef.current) loginUserRef.current?.focus();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [view]);
 
   useEffect(() => {
     if (view === 'live') {
       setTimeout(() => {
         firstCategoryRef.current?.focus();
       }, 500);
+    } else if (view === 'dashboard') {
+      setTimeout(() => {
+        dashboardLiveRef.current?.focus();
+      }, 500);
+    } else if (showInput) {
+      setTimeout(() => {
+        loginUserRef.current?.focus();
+      }, 500);
     }
-  }, [view]);
+  }, [view, showInput]);
 
   const handleChannelSelect = (channel: M3UChannel) => {
     setSelectedChannel(channel);
@@ -208,22 +299,24 @@ export default function App() {
               <div>
                 <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-white/40 mb-2 ml-2">Usuário</label>
                 <input 
+                  ref={loginUserRef}
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Seu nome de usuário..."
-                  className="w-full bg-black/60 border border-white/10 rounded-2xl py-4 px-6 text-white focus:outline-none focus:border-white transition-all text-sm placeholder:text-white/20"
+                  className="w-full bg-black/60 border border-white/10 rounded-2xl py-4 px-6 text-white focus:outline-none focus:border-white focus:ring-4 focus:ring-white/20 transition-all text-sm placeholder:text-white/20"
                 />
               </div>
               <div>
                 <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-white/40 mb-2 ml-2">Playlist M3U</label>
                 <div className="relative">
                   <input 
+                    ref={loginUrlRef}
                     type="text"
                     value={m3uUrl}
                     onChange={(e) => setM3uUrl(e.target.value)}
                     placeholder="Cole seu link aqui..."
-                    className="w-full bg-black/60 border border-white/10 rounded-2xl py-4 px-6 text-white focus:outline-none focus:border-white transition-all text-sm placeholder:text-white/20"
+                    className="w-full bg-black/60 border border-white/10 rounded-2xl py-4 px-6 text-white focus:outline-none focus:border-white focus:ring-4 focus:ring-white/20 transition-all text-sm placeholder:text-white/20"
                   />
                 </div>
               </div>
@@ -240,9 +333,10 @@ export default function App() {
               )}
 
               <button 
+                ref={loginSubmitRef}
                 onClick={() => handleLoadList()}
                 disabled={isLoading || !m3uUrl}
-                className="w-full bg-white hover:bg-zinc-200 disabled:opacity-50 text-black font-black py-6 rounded-2xl transition-all flex items-center justify-center gap-4 shadow-xl shadow-white/5 group focus:ring-4 focus:ring-[#f27d26] focus:outline-none"
+                className="w-full bg-white hover:bg-zinc-200 disabled:opacity-50 text-black font-black py-6 rounded-2xl transition-all flex items-center justify-center gap-4 shadow-xl shadow-white/5 group focus:ring-8 focus:ring-white/40 focus:outline-none"
               >
                 {isLoading ? (
                   <Loader2 className="w-6 h-6 animate-spin" />
@@ -255,8 +349,9 @@ export default function App() {
               </button>
 
               <button 
+                ref={loginDemoRef}
                 onClick={loadDemo}
-                className="w-full py-2 text-white/20 hover:text-white/50 font-black text-[10px] uppercase tracking-[0.3em] transition-colors focus:text-white focus:outline-none"
+                className="w-full py-2 text-white/20 hover:text-white/50 font-black text-[10px] uppercase tracking-[0.3em] transition-colors focus:text-white focus:ring-2 focus:ring-white/10 focus:outline-none rounded-lg"
               >
                 Testar Lista Demonstrativa
               </button>
@@ -378,36 +473,38 @@ export default function App() {
         </AnimatePresence>
 
         {/* Main Grid Dashboard */}
-        <main className="flex-1 relative z-10 flex items-center justify-center p-6 lg:p-12 overflow-hidden">
-          <div className="w-full max-w-5xl aspect-video flex flex-col items-center justify-center gap-8">
+        <main className="flex-1 relative z-10 flex items-center justify-center p-4 overflow-hidden">
+          <div className="w-full max-w-4xl flex flex-col items-center justify-center gap-6">
             
             {/* LIVE TV - Centered and Smaller */}
             <motion.button
+              ref={dashboardLiveRef}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => setView('live')}
-              className="w-1/2 h-1/2 bg-gradient-to-br from-[#00d2ff] to-[#3a7bd5] rounded-[3rem] flex flex-col items-center justify-center gap-6 shadow-2xl relative overflow-hidden group border border-white/10 focus:ring-8 focus:ring-white/20 focus:outline-none"
+              className="w-2/3 h-64 bg-gradient-to-br from-[#00d2ff] to-[#3a7bd5] rounded-[2rem] flex flex-col items-center justify-center gap-4 shadow-2xl relative overflow-hidden group border border-white/10 focus:ring-8 focus:ring-white/40 focus:outline-none"
             >
               <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className="w-32 h-32 border-4 border-white/20 rounded-[2.5rem] flex items-center justify-center shadow-inner">
+              <div className="w-24 h-24 border-4 border-white/20 rounded-[2rem] flex items-center justify-center shadow-inner">
                 <div className="relative">
-                  <MonitorPlay className="w-20 h-20 text-white drop-shadow-2xl" />
+                  <MonitorPlay className="w-14 h-14 text-white drop-shadow-2xl" />
                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-md px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border border-white/20">Live TV</div>
                 </div>
               </div>
               <div className="text-center">
-                <h2 className="text-4xl font-black italic tracking-tighter uppercase drop-shadow-lg">Live TV</h2>
+                <h2 className="text-3xl font-black italic tracking-tighter uppercase drop-shadow-lg">Live TV</h2>
               </div>
             </motion.button>
-
+ 
             {/* MOVIES & SERIES - Side by Side */}
-            <div className="w-1/2 flex gap-6 h-[15%]">
+            <div className="w-2/3 flex gap-4 h-24">
               {/* MOVIES - Small Tile */}
               <motion.button
+                data-dash="movies"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => alert('Seção de Filmes em breve!')}
-                className="flex-1 bg-gradient-to-br from-[#ff512f] to-[#dd2476] rounded-[1.5rem] flex items-center justify-center gap-4 shadow-xl relative overflow-hidden group border border-white/10 focus:ring-4 focus:ring-white/20 focus:outline-none"
+                className="flex-1 bg-gradient-to-br from-[#ff512f] to-[#dd2476] rounded-[1.5rem] flex items-center justify-center gap-4 shadow-xl relative overflow-hidden group border border-white/10 focus:ring-8 focus:ring-white/40 focus:outline-none"
               >
                 <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
                 <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center shadow-lg">
@@ -415,13 +512,14 @@ export default function App() {
                 </div>
                 <h2 className="text-lg font-black italic tracking-tighter uppercase drop-shadow-md">Movies</h2>
               </motion.button>
-
+ 
               {/* SERIES - Small Tile */}
               <motion.button
+                data-dash="series"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => alert('Seção de Séries em breve!')}
-                className="flex-1 bg-gradient-to-br from-[#8e2de2] to-[#4a00e0] rounded-[1.5rem] flex items-center justify-center gap-4 shadow-xl relative overflow-hidden group border border-white/10 focus:ring-4 focus:ring-white/20 focus:outline-none"
+                className="flex-1 bg-gradient-to-br from-[#8e2de2] to-[#4a00e0] rounded-[1.5rem] flex items-center justify-center gap-4 shadow-xl relative overflow-hidden group border border-white/10 focus:ring-8 focus:ring-white/40 focus:outline-none"
               >
                 <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
                 <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center shadow-lg">
@@ -483,9 +581,9 @@ export default function App() {
       </div>
 
       {/* 16:9 TV Container */}
-      <div className="w-screen h-screen max-w-[177.78vh] max-h-[56.25vw] bg-[#0a0a0a] shadow-2xl relative z-10 flex flex-col overflow-hidden border border-white/5">
+      <div className="w-full h-full bg-[#0a0a0a] shadow-2xl relative z-10 flex flex-col overflow-hidden border border-white/5">
         {/* Top Header */}
-        <header className="h-14 px-6 flex items-center justify-between z-20 bg-[#1a1a1a] border-b border-white/5 flex-shrink-0">
+        <header className="h-12 px-6 flex items-center justify-between z-20 bg-[#1a1a1a] border-b border-white/5 flex-shrink-0">
           <div className="flex items-center gap-4">
             <button 
               onClick={() => setView('dashboard')}
@@ -511,55 +609,59 @@ export default function App() {
         <main className="flex-1 flex overflow-hidden z-10">
           
           {/* Column 1: Categories Sidebar */}
-          <aside className="w-56 flex flex-col bg-[#1a1a1b] border-r border-white/5 flex-shrink-0">
+          <aside ref={sidebarRef} className="w-48 flex flex-col bg-[#1a1a1b] border-r border-white/5 flex-shrink-0">
             <div className="flex-1 overflow-y-auto custom-scrollbar p-1.5 space-y-0.5">
               <button
                 ref={firstCategoryRef}
                 onClick={() => setSelectedCategory('RECENTES')}
+                data-active={selectedCategory === 'RECENTES'}
                 className={cn(
-                  "w-full flex items-center justify-between px-3 py-2.5 rounded text-[11px] font-bold transition-all uppercase tracking-tight focus:ring-2 focus:ring-[#f27d26] focus:outline-none",
+                  "w-full flex items-center justify-between px-3 py-2 rounded text-[10px] font-bold transition-all uppercase tracking-tight focus:ring-4 focus:ring-[#f27d26] focus:outline-none",
                   selectedCategory === 'RECENTES' ? "bg-[#f27d26] text-white" : "text-white/60 hover:bg-white/5"
                 )}
               >
                 <span>Recentes</span>
-                <span className="text-[9px] opacity-60">(0)</span>
+                <span className="text-[8px] opacity-60">(0)</span>
               </button>
               
               <button
                 onClick={() => setSelectedCategory('TODOS')}
+                data-active={selectedCategory === 'TODOS'}
                 className={cn(
-                  "w-full flex items-center justify-between px-3 py-2.5 rounded text-[11px] font-bold transition-all uppercase tracking-tight focus:ring-2 focus:ring-[#f27d26] focus:outline-none",
+                  "w-full flex items-center justify-between px-3 py-2 rounded text-[10px] font-bold transition-all uppercase tracking-tight focus:ring-4 focus:ring-[#f27d26] focus:outline-none",
                   selectedCategory === 'TODOS' ? "bg-[#f27d26] text-white" : "text-white/60 hover:bg-white/5"
                 )}
               >
                 <span>Todos</span>
-                <span className="text-[9px] opacity-60">({channels.length})</span>
+                <span className="text-[8px] opacity-60">({channels.length})</span>
               </button>
 
               <button
                 onClick={() => setSelectedCategory('FAVORITOS')}
+                data-active={selectedCategory === 'FAVORITOS'}
                 className={cn(
-                  "w-full flex items-center justify-between px-3 py-2.5 rounded text-[11px] font-bold transition-all uppercase tracking-tight focus:ring-2 focus:ring-[#f27d26] focus:outline-none",
+                  "w-full flex items-center justify-between px-3 py-2 rounded text-[10px] font-bold transition-all uppercase tracking-tight focus:ring-4 focus:ring-[#f27d26] focus:outline-none",
                   selectedCategory === 'FAVORITOS' ? "bg-[#f27d26] text-white" : "text-white/60 hover:bg-white/5"
                 )}
               >
                 <span>Favoritos</span>
-                <span className="text-[9px] opacity-60">(0)</span>
+                <span className="text-[8px] opacity-60">(0)</span>
               </button>
 
-              <div className="h-px bg-white/5 my-1.5 mx-3" />
+              <div className="h-px bg-white/5 my-1 mx-3" />
 
               {categories.filter(c => c !== 'TODOS').map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setSelectedCategory(cat)}
+                  data-active={selectedCategory === cat}
                   className={cn(
-                    "w-full flex items-center justify-between px-3 py-2.5 rounded text-[11px] font-bold transition-all uppercase tracking-tight focus:ring-2 focus:ring-[#f27d26] focus:outline-none",
+                    "w-full flex items-center justify-between px-3 py-2 rounded text-[10px] font-bold transition-all uppercase tracking-tight focus:ring-4 focus:ring-[#f27d26] focus:outline-none",
                     selectedCategory === cat ? "bg-[#f27d26] text-white" : "text-white/60 hover:bg-white/5"
                   )}
                 >
                   <span className="truncate pr-2">{cat}</span>
-                  <span className="text-[9px] opacity-60">
+                  <span className="text-[8px] opacity-60">
                     ({channels.filter(ch => ch.group === cat).length})
                   </span>
                 </button>
@@ -568,21 +670,22 @@ export default function App() {
           </aside>
 
           {/* Column 2: Channels List (Vertical) */}
-          <section className="w-64 flex flex-col bg-[#212124] border-r border-white/5 flex-shrink-0">
+          <section ref={channelListRef} className="w-60 flex flex-col bg-[#212124] border-r border-white/5 flex-shrink-0">
             <div className="flex-1 overflow-y-auto custom-scrollbar">
               {filteredChannels.map((channel, index) => (
                 <button
                   key={channel.id}
                   onClick={() => handleChannelSelect(channel)}
+                  data-selected={selectedChannel?.id === channel.id}
                   className={cn(
-                    "w-full flex items-center gap-3 px-4 py-2.5 transition-all border-b border-white/[0.02] focus:ring-2 focus:ring-[#f27d26] focus:outline-none focus:z-10",
+                    "w-full flex items-center gap-3 px-4 py-2 transition-all border-b border-white/[0.02] focus:ring-4 focus:ring-[#f27d26] focus:outline-none focus:z-10",
                     selectedChannel?.id === channel.id 
                       ? "bg-[#f27d26] text-white" 
                       : "text-white/80 hover:bg-white/5"
                   )}
                 >
-                  <span className="text-[9px] font-bold opacity-40 w-5">{index + 1}</span>
-                  <div className="w-7 h-7 bg-black/40 rounded flex items-center justify-center p-1 border border-white/10">
+                  <span className="text-[8px] font-bold opacity-40 w-5">{index + 1}</span>
+                  <div className="w-6 h-6 bg-black/40 rounded flex items-center justify-center p-1 border border-white/10">
                     {channel.logo ? (
                       <img 
                         src={channel.logo} 
@@ -594,17 +697,17 @@ export default function App() {
                         }}
                       />
                     ) : (
-                      <Tv className="w-3.5 h-3.5 text-white/10" />
+                      <Tv className="w-3 h-3 text-white/10" />
                     )}
                   </div>
-                  <span className="text-[11px] font-bold truncate flex-1 text-left uppercase tracking-tight">{channel.name}</span>
+                  <span className="text-[10px] font-bold truncate flex-1 text-left uppercase tracking-tight">{channel.name}</span>
                 </button>
               ))}
             </div>
           </section>
 
           {/* Column 3: Channel Info */}
-          <aside className="flex-1 flex flex-col bg-[#0a0a0a] overflow-hidden">
+          <aside ref={infoPanelRef} className="flex-1 flex flex-col bg-[#0a0a0a] overflow-hidden">
             <div className="flex-1 flex flex-col p-5 overflow-y-auto custom-scrollbar">
               {/* Channel Banner/Logo Area */}
               <div className="aspect-video bg-zinc-900/50 relative overflow-hidden rounded-xl border border-white/5 shadow-2xl flex items-center justify-center group flex-shrink-0 max-h-[45%]">
