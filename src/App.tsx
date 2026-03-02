@@ -15,6 +15,7 @@ import {
 import { parseM3U, M3UChannel } from './utils/m3uParser';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { VideoPlayer } from './components/VideoPlayer';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -35,6 +36,7 @@ export default function App() {
   const [view, setView] = useState<'dashboard' | 'live'>(() => 
     localStorage.getItem('iptv_m3u_url') ? 'live' : 'dashboard'
   );
+  const [isPlaying, setIsPlaying] = useState(false);
   const firstCategoryRef = useRef<HTMLButtonElement>(null);
   const dashboardLiveRef = useRef<HTMLButtonElement>(null);
   const channelListRef = useRef<HTMLDivElement>(null);
@@ -138,27 +140,12 @@ export default function App() {
 
   const handleChannelSelect = (channel: M3UChannel) => {
     setSelectedChannel(channel);
-    openExternalPlayer(channel.url);
+    handlePlayChannel(channel.url);
   };
 
-  const openExternalPlayer = (url: string) => {
+  const handlePlayChannel = (url: string) => {
     if (!url) return;
-    
-    const isAndroid = /Android/i.test(navigator.userAgent);
-    
-    if (isAndroid) {
-      // Intent mais compatível para Android
-      // S.browser_fallback_url garante que se o intent falhar, ele tenta abrir o link direto
-      const intentUrl = `intent:${url}#Intent;action=android.intent.action.VIEW;type=video/*;S.browser_fallback_url=${encodeURIComponent(url)};end`;
-      
-      try {
-        window.location.href = intentUrl;
-      } catch (e) {
-        window.location.href = url;
-      }
-    } else {
-      window.open(url, '_blank');
-    }
+    setIsPlaying(true);
   };
 
   // Update clock
@@ -723,7 +710,7 @@ export default function App() {
                     <motion.button
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
-                      onClick={() => openExternalPlayer(selectedChannel.url)}
+                      onClick={() => handlePlayChannel(selectedChannel.url)}
                       className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity focus:outline-none"
                     >
                       <div className="w-14 h-14 bg-[#f27d26] rounded-full flex items-center justify-center shadow-2xl shadow-[#f27d26]/40 ring-4 ring-white/20">
@@ -759,13 +746,13 @@ export default function App() {
                     <span className="text-[7px] font-bold text-white/40 uppercase tracking-widest">Full HD 1080p</span>
                   </div>
                   <h2 
-                    onClick={() => openExternalPlayer(selectedChannel.url)}
+                    onClick={() => handlePlayChannel(selectedChannel.url)}
                     className="text-2xl font-black text-white italic uppercase tracking-tighter leading-none mb-3 cursor-pointer hover:text-[#f27d26] transition-colors"
                   >
                     {selectedChannel.name}
                   </h2>
                   <p className="text-white/40 text-[10px] leading-relaxed max-w-xs">
-                    Canal pronto. O player externo será aberto automaticamente. Se não abrir, clique no botão abaixo.
+                    Canal pronto para reprodução. Clique no botão abaixo ou no logo para iniciar o player interno.
                   </p>
                 </motion.div>
               )}
@@ -776,11 +763,11 @@ export default function App() {
               <div className="flex flex-col gap-3 mt-auto pt-4">
                 {selectedChannel ? (
                   <button 
-                    onClick={() => openExternalPlayer(selectedChannel.url)}
+                    onClick={() => handlePlayChannel(selectedChannel.url)}
                     className="py-3.5 bg-[#f27d26] hover:bg-[#e67622] text-white font-black rounded-lg transition-all text-[9px] uppercase tracking-[0.2em] shadow-xl shadow-[#f27d26]/20 flex items-center justify-center gap-2 focus:ring-4 focus:ring-white/30 focus:outline-none"
                   >
                     <MonitorPlay className="w-3.5 h-3.5" />
-                    Abrir no Player Externo
+                    Reproduzir Canal
                   </button>
                 ) : (
                   <div className="w-full py-3.5 bg-white/5 border border-white/5 rounded-xl flex items-center justify-center">
@@ -808,6 +795,15 @@ export default function App() {
           background: rgba(255, 255, 255, 0.2);
         }
       `}} />
+
+      {/* Video Player Overlay */}
+      {isPlaying && selectedChannel && (
+        <VideoPlayer 
+          url={`/api/proxy?url=${encodeURIComponent(selectedChannel.url)}`}
+          title={selectedChannel.name}
+          onClose={() => setIsPlaying(false)} 
+        />
+      )}
     </div>
   );
 }

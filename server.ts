@@ -60,24 +60,21 @@ async function startServer() {
 
     const tryFetch = async (ua: string, attempt: number = 0): Promise<any> => {
       try {
-        // First, do a HEAD request or a small GET to check content type if not obvious from URL
         const isM3U8Request = targetUrl.toLowerCase().includes('.m3u8');
         
         const response = await axios.get(targetUrl, {
-          // If it's a manifest, we need the full buffer to rewrite URLs.
-          // If it's a segment (.ts), we stream it.
           responseType: isM3U8Request ? 'arraybuffer' : 'stream',
           headers: {
             'User-Agent': ua,
             'Accept': '*/*',
             'Connection': 'keep-alive',
+            'Referer': new URL(targetUrl).origin,
           },
           timeout: 30000,
+          maxRedirects: 5,
           validateStatus: (status) => status < 500,
         });
 
-        // If the content type says it's M3U8 but we streamed it, we might need to collect it.
-        // But simpler: just check if it's a stream and we need to rewrite it.
         return response;
       } catch (error) {
         if (attempt < 2) {
