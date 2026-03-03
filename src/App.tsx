@@ -41,6 +41,7 @@ export default function App() {
     localStorage.getItem('iptv_m3u_url') ? 'live' : 'dashboard'
   );
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playerMinimized, setPlayerMinimized] = useState(true);
   const [showChoiceModal, setShowChoiceModal] = useState(false);
   const [channelToPlay, setChannelToPlay] = useState<M3UChannel | null>(null);
   const [playerType, setPlayerType] = useState<'internal' | 'external'>('internal');
@@ -59,6 +60,21 @@ export default function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const active = document.activeElement;
       if (!active) return;
+
+      if (e.key === 'Enter' || e.keyCode === 13) {
+        // Trigger click on active element if it's a button
+        if (active.tagName === 'BUTTON') {
+          e.preventDefault();
+          (active as HTMLElement).click();
+          return;
+        }
+        // Handle login submit on Enter in input fields
+        if (active.tagName === 'INPUT' && showInput) {
+          e.preventDefault();
+          loginSubmitRef.current?.click();
+          return;
+        }
+      }
 
       if (view === 'live') {
         if (e.key === 'Backspace' || e.key === 'Escape' || e.keyCode === 4 || e.keyCode === 27) {
@@ -155,16 +171,18 @@ export default function App() {
 
   const handleChannelSelect = (channel: M3UChannel) => {
     setSelectedChannel(channel);
-    // When selecting, we just show the info, don't play immediately if we want long press to work
-    // But the user said "interno sempre abrir de primeira", so maybe they want it to play on click
-    // I'll keep the click behavior as "play internal" and long press as "choice"
-    handlePlayChannel(channel, 'internal');
+    handlePlayChannel(channel, 'internal', true);
   };
 
-  const handlePlayChannel = (channel: M3UChannel, type: 'internal' | 'external' = 'internal') => {
+  const handleChannelDoubleClick = (channel: M3UChannel) => {
+    handlePlayChannel(channel, 'internal', false);
+  };
+
+  const handlePlayChannel = (channel: M3UChannel, type: 'internal' | 'external' = 'internal', minimized = true) => {
     if (!channel?.url) return;
     setChannelToPlay(channel);
     setPlayerType(type);
+    setPlayerMinimized(minimized);
     
     if (type === 'internal') {
       setIsPlaying(true);
@@ -710,6 +728,7 @@ export default function App() {
                   index={index}
                   isSelected={selectedChannel?.id === channel.id}
                   onClick={handleChannelSelect}
+                  onDoubleClick={handleChannelDoubleClick}
                   onLongPress={(ch) => {
                     setChannelToPlay(ch);
                     setShowChoiceModal(true);
@@ -734,7 +753,8 @@ export default function App() {
                       referrerPolicy="no-referrer"
                     />
                     <PlayButton
-                      onClick={() => handlePlayChannel(selectedChannel, 'internal')}
+                      onClick={() => handlePlayChannel(selectedChannel, 'internal', true)}
+                      onDoubleClick={() => handlePlayChannel(selectedChannel, 'internal', false)}
                       onLongPress={() => {
                         setChannelToPlay(selectedChannel);
                         setShowChoiceModal(true);
@@ -769,7 +789,8 @@ export default function App() {
                     <span className="text-[7px] font-bold text-white/40 uppercase tracking-widest">Full HD 1080p</span>
                   </div>
                   <h2 
-                    onClick={() => handlePlayChannel(selectedChannel, 'internal')}
+                    onClick={() => handlePlayChannel(selectedChannel, 'internal', true)}
+                    onDoubleClick={() => handlePlayChannel(selectedChannel, 'internal', false)}
                     className="text-2xl font-black text-white italic uppercase tracking-tighter leading-none mb-3 cursor-pointer hover:text-[#f27d26] transition-colors"
                   >
                     {selectedChannel.name}
@@ -788,7 +809,8 @@ export default function App() {
                   <PlayButton
                     variant="full"
                     label="Reproduzir Canal"
-                    onClick={() => handlePlayChannel(selectedChannel, 'internal')}
+                    onClick={() => handlePlayChannel(selectedChannel, 'internal', true)}
+                    onDoubleClick={() => handlePlayChannel(selectedChannel, 'internal', false)}
                     onLongPress={() => {
                       setChannelToPlay(selectedChannel);
                       setShowChoiceModal(true);
@@ -827,7 +849,7 @@ export default function App() {
           key={channelToPlay.id}
           url={channelToPlay.url}
           title={channelToPlay.name}
-          initialMinimized={true}
+          initialMinimized={playerMinimized}
           onClose={() => setIsPlaying(false)} 
         />
       )}

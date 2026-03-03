@@ -20,6 +20,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, onClose, title, i
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(initialMinimized);
   const [debug, setDebug] = useState(false);
+
+  useEffect(() => {
+    setIsMinimized(initialMinimized);
+  }, [initialMinimized]);
   const [engine, setEngine] = useState<'hlsjs' | 'shaka' | 'mpegts' | 'native'>('hlsjs');
   const [error, setError] = useState<string | null>(null);
 
@@ -94,6 +98,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, onClose, title, i
     <motion.div 
       id="player-container"
       layout
+      onDoubleClick={() => setIsMinimized(false)}
       initial={isMinimized ? { width: '320px', height: '180px', bottom: '24px', right: '24px', borderRadius: '1.5rem' } : { inset: 0 }}
       animate={isMinimized ? { 
         width: '320px', 

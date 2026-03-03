@@ -9,6 +9,7 @@ interface ChannelItemProps {
   index: number;
   isSelected: boolean;
   onClick: (channel: M3UChannel) => void;
+  onDoubleClick: (channel: M3UChannel) => void;
   onLongPress: (channel: M3UChannel) => void;
 }
 
@@ -17,6 +18,7 @@ export const ChannelItem: React.FC<ChannelItemProps> = ({
   index, 
   isSelected, 
   onClick, 
+  onDoubleClick,
   onLongPress 
 }) => {
   const longPressProps = useLongPress(
@@ -28,6 +30,7 @@ export const ChannelItem: React.FC<ChannelItemProps> = ({
   return (
     <button
       {...longPressProps}
+      onDoubleClick={() => onDoubleClick(channel)}
       data-selected={isSelected}
       className={cn(
         "w-full flex items-center gap-3 px-4 py-2 transition-all border-b border-white/[0.02] focus:ring-4 focus:ring-[#f27d26] focus:outline-none focus:z-10",
