@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, RotateCcw, AlertCircle, Maximize, Minimize } from 'lucide-react';
+import { X, RotateCcw, AlertCircle, Maximize, Minimize, ExternalLink, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -37,6 +37,21 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, onClose, title })
 
   const playerIframeUrl = `/player.html?url=${encodeURIComponent(playUrl)}${debug ? '&debug=true' : ''}&engine=${engine}`;
 
+  const openExternalPlayer = () => {
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    if (isAndroid) {
+      const intentUrl = `intent:${url}#Intent;action=android.intent.action.VIEW;type=video/*;end`;
+      window.location.href = intentUrl;
+    } else {
+      // For PC, we can't easily trigger "Open with", but we can try to open the URL directly
+      // or show a prompt.
+      const win = window.open(url, '_blank');
+      if (!win) {
+        alert("Por favor, permita popups para abrir o player externo ou copie o link: " + url);
+      }
+    }
+  };
+
   const toggleFullscreen = () => {
     const container = document.getElementById('player-container');
     if (!container) return;
@@ -56,9 +71,22 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, onClose, title })
     const handleFsChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
     };
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 27 || e.keyCode === 4) {
+        // Only close if not in an input field (though there are no inputs here)
+        onClose();
+      }
+    };
+
     document.addEventListener('fullscreenchange', handleFsChange);
-    return () => document.removeEventListener('fullscreenchange', handleFsChange);
-  }, []);
+    window.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
 
   return (
     <div 
@@ -66,13 +94,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, onClose, title })
       className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center overflow-hidden"
     >
       {/* Header Overlay */}
-      <div className="absolute top-0 left-0 right-0 p-6 bg-gradient-to-b from-black/90 via-black/40 to-transparent z-[110] flex items-center justify-between opacity-0 hover:opacity-100 transition-opacity duration-300 group">
+      <div className="absolute top-0 left-0 right-0 p-6 bg-gradient-to-b from-black/90 via-black/40 to-transparent z-[110] flex items-center justify-between transition-opacity duration-300 group opacity-100 md:opacity-0 md:hover:opacity-100">
         <div className="flex items-center gap-4">
           <button 
             onClick={onClose}
             className="p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-all border border-white/5"
+            title="Sair do Player"
           >
-            <X className="w-6 h-6 text-white" />
+            <ArrowLeft className="w-6 h-6 text-white" />
           </button>
           <div className="flex flex-col">
             <span className="text-[8px] font-black text-[#f27d26] uppercase tracking-widest mb-0.5">Deninho TV Pro</span>
@@ -118,6 +147,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, onClose, title })
           >
             <RotateCcw className="w-3 h-3" />
             {isHttp ? 'Proxy Forçado (HTTP)' : (retryWithDirect ? 'Usar Proxy' : 'Direto')}
+          </button>
+
+          <button 
+            onClick={openExternalPlayer}
+            className="p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-all border border-white/5"
+            title="Abrir no Player Externo"
+          >
+            <ExternalLink className="w-5 h-5 text-white" />
           </button>
 
           <button 

@@ -54,6 +54,14 @@ export default function App() {
       if (!active) return;
 
       if (view === 'live') {
+        if (e.key === 'Backspace' || e.key === 'Escape' || e.keyCode === 4 || e.keyCode === 27) {
+          if (!isPlaying) {
+            e.preventDefault();
+            setView('dashboard');
+            return;
+          }
+        }
+
         if (e.key === 'ArrowRight') {
           // If in sidebar, move to channel list
           if (sidebarRef.current?.contains(active)) {
