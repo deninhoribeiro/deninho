@@ -51,34 +51,79 @@ async function startServer() {
 
     // List of common IPTV player User-Agents
     const userAgents = [
-      'IPTVSmartersPlayer',
-      'VLC/3.0.18 LibVLC/3.0.18',
-      'AppleCoreMedia/1.0.0.19E241',
-      'ExoPlayerLib/2.18.1',
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      'VLC/3.0.20 LibVLC/3.0.20',
+      'IPTVSmartersPlayer/1.0',
+      'ExoPlayerLib/2.19.1',
+      'AppleCoreMedia/1.0.0.20G81 (Apple TV; U; CPU OS 16_6 like Mac OS X; en_us)',
+      'Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36',
+      'Mozilla/5.0 (Web0S; Linux/SmartTV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.5735.196 Safari/537.36 SmartTV/8.3.0 (NetCast)',
+      'Mozilla/5.0 (Linux; Tizen 7.0; SmartTV) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/6.4 Chrome/94.0.4606.81 TV Safari/537.36'
     ];
 
     const tryFetch = async (ua: string, attempt: number = 0): Promise<any> => {
       try {
-        const isM3U8Request = targetUrl.toLowerCase().includes('.m3u8');
-        
-        const response = await axios.get(targetUrl, {
-          responseType: isM3U8Request ? 'arraybuffer' : 'stream',
-          headers: {
-            'User-Agent': ua,
-            'Accept': '*/*',
-            'Connection': 'keep-alive',
-            'Referer': new URL(targetUrl).origin,
-          },
+        const headers: any = {
+          'User-Agent': ua,
+          'Accept': '*/*',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Connection': 'keep-alive',
+          'Referer': targetUrl,
+          'Origin': new URL(targetUrl).origin,
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        };
+
+        if (req.headers.range) {
+          headers['Range'] = req.headers.range;
+        }
+
+        const protocol = new URL(targetUrl).protocol.toUpperCase();
+        console.log(`[Proxy] Fetching (${req.method}) [${protocol}]: ${targetUrl} (Attempt ${attempt + 1}) | UA: ${ua.substring(0, 30)}...`);
+
+        // Use axios to fetch the stream
+        const response = await axios({
+          method: req.method as any,
+          url: targetUrl,
+          responseType: 'stream',
+          headers,
           timeout: 30000,
-          maxRedirects: 5,
+          maxRedirects: 15,
           validateStatus: (status) => status < 500,
         });
 
-        return response;
-      } catch (error) {
-        if (attempt < 2) {
+        const contentType = (response.headers['content-type'] || '').toLowerCase();
+        const isTS = targetUrl.toLowerCase().includes('.ts') || contentType.includes('video/mp2t');
+        const isManifest = !isTS && (contentType.includes('mpegurl') || 
+                          contentType.includes('x-mpegurl') || 
+                          contentType.includes('application/vnd.apple.mpegurl') ||
+                          targetUrl.toLowerCase().includes('.m3u8') ||
+                          targetUrl.toLowerCase().includes('.m3u'));
+
+        // If it's a manifest, we need the full data to rewrite it
+        if (isManifest && req.method === 'GET') {
+            const chunks: any[] = [];
+            for await (const chunk of response.data) {
+                chunks.push(chunk);
+            }
+            response.data = Buffer.concat(chunks);
+        }
+
+        if (contentType.includes('text/html') && !targetUrl.toLowerCase().includes('.html') && attempt < 3) {
+          console.log(`[Proxy] Got HTML instead of stream, retrying with different UA...`);
           const nextUA = userAgents[Math.floor(Math.random() * userAgents.length)];
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          return tryFetch(nextUA, attempt + 1);
+        }
+
+        return { response, isManifest };
+      } catch (error: any) {
+        if (attempt < 3) {
+          console.log(`[Proxy] Error: ${error.message}, retrying...`);
+          const nextUA = userAgents[Math.floor(Math.random() * userAgents.length)];
+          await new Promise(resolve => setTimeout(resolve, 1500));
           return tryFetch(nextUA, attempt + 1);
         }
         throw error;
@@ -86,39 +131,41 @@ async function startServer() {
     };
 
     try {
-      const response = await tryFetch(userAgents[Math.floor(Math.random() * userAgents.length)]);
+      const { response, isManifest } = await tryFetch(userAgents[Math.floor(Math.random() * userAgents.length)]);
       
-      const contentType = response.headers['content-type'] || 'application/octet-stream';
-      const isM3U8 = contentType.includes('mpegurl') || 
-                     contentType.includes('x-mpegURL') || 
-                     targetUrl.toLowerCase().includes('.m3u8');
+      let contentType = (response.headers['content-type'] || 'application/octet-stream').toLowerCase();
+      
+      // Force correct content type for TS files if needed
+      if (targetUrl.toLowerCase().includes('.ts') && contentType === 'application/octet-stream') {
+        contentType = 'video/mp2t';
+      }
 
       res.set('Content-Type', contentType);
       res.set('Access-Control-Allow-Origin', '*');
+      res.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+      res.set('Access-Control-Allow-Headers', '*');
       res.set('Cache-Control', 'no-cache');
-      res.set('X-DNS-Engine', 'Cloudflare-DoH-Optimized');
-      res.set('X-Proxy-Attempt', 'Success');
 
-      if (isM3U8) {
-        let dataBuffer: Buffer;
-        if (response.data instanceof Buffer) {
-          dataBuffer = response.data;
-        } else {
-          // Collect stream into buffer if it's a manifest but was streamed
-          const chunks: any[] = [];
-          for await (const chunk of response.data) {
-            chunks.push(chunk);
-          }
-          dataBuffer = Buffer.concat(chunks);
+      if (response.headers['content-length']) {
+        res.set('Content-Length', response.headers['content-length']);
+      }
+
+      if (isManifest && req.method === 'GET') {
+        let content = response.data.toString();
+        
+        if (content.trim().startsWith('<!DOCTYPE') || content.trim().startsWith('<html')) {
+           console.error("[Proxy] Manifest is actually HTML");
+           return res.status(502).send("O link retornou uma página da web em vez do vídeo.");
         }
 
-        let content = dataBuffer.toString();
-        const baseUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/') + 1);
+        const baseUrl = new URL('.', targetUrl).href;
         
-        const lines = content.split('\n');
+        const lines = content.split(/\r?\n/);
         const rewrittenLines = lines.map((line: string) => {
           const trimmed = line.trim();
-          if (trimmed && !trimmed.startsWith('#')) {
+          if (!trimmed) return line;
+
+          if (!trimmed.startsWith('#')) {
             try {
               const absoluteUrl = new URL(trimmed, baseUrl).href;
               return `/api/proxy?url=${encodeURIComponent(absoluteUrl)}`;
@@ -126,21 +173,34 @@ async function startServer() {
               return line;
             }
           }
+
+          if (trimmed.includes('URI=')) {
+            return trimmed.replace(/URI="([^"]+)"/g, (match, uri) => {
+              try {
+                const absoluteUrl = new URL(uri, baseUrl).href;
+                return `URI="/api/proxy?url=${encodeURIComponent(absoluteUrl)}"`;
+              } catch (e) {
+                return match;
+              }
+            });
+          }
+
           return line;
         });
         
         res.send(rewrittenLines.join('\n'));
       } else {
-        // For .ts segments or direct streams, pipe the data
-        if (response.data.pipe) {
+        if (req.method === 'HEAD') {
+          res.end();
+        } else if (response.data.pipe) {
           response.data.pipe(res);
         } else {
           res.send(response.data);
         }
       }
-    } catch (error) {
-      console.error("Proxy Error:", error);
-      res.status(500).send("Proxy Error");
+    } catch (error: any) {
+      console.error("Proxy Error for URL:", targetUrl, error.message);
+      res.status(500).send(`Erro ao conectar com o canal: ${error.message}`);
     }
   });
 

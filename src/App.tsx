@@ -240,7 +240,7 @@ export default function App() {
   }, []);
 
   const getProxiedUrl = (url: string) => {
-    return `/api/proxy?url=${encodeURIComponent(url)}`;
+    return url; // Pass original URL, VideoPlayer will handle proxying
   };
 
   const loadDemo = () => {
@@ -799,7 +799,8 @@ export default function App() {
       {/* Video Player Overlay */}
       {isPlaying && selectedChannel && (
         <VideoPlayer 
-          url={`/api/proxy?url=${encodeURIComponent(selectedChannel.url)}`}
+          key={selectedChannel.id}
+          url={selectedChannel.url}
           title={selectedChannel.name}
           onClose={() => setIsPlaying(false)} 
         />
