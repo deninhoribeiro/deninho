@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MonitorPlay, ExternalLink, X } from 'lucide-react';
+import { cn } from '../utils/cn';
 
 interface PlayerChoiceModalProps {
   isOpen: boolean;
@@ -10,6 +11,38 @@ interface PlayerChoiceModalProps {
 }
 
 export const PlayerChoiceModal: React.FC<PlayerChoiceModalProps> = ({ isOpen, onClose, onChoice, title }) => {
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedIndex(0);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedIndex(prev => (prev + 1) % 2);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedIndex(prev => (prev - 1 + 2) % 2);
+      } else if (e.key === 'Enter' || e.keyCode === 13) {
+        e.preventDefault();
+        onChoice(selectedIndex === 0 ? 'internal' : 'external');
+        onClose();
+      } else if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) {
+        e.preventDefault();
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, selectedIndex, onChoice, onClose]);
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -48,14 +81,23 @@ export const PlayerChoiceModal: React.FC<PlayerChoiceModalProps> = ({ isOpen, on
                     onChoice('internal');
                     onClose();
                   }}
-                  className="w-full flex items-center gap-4 p-4 bg-white/5 hover:bg-[#f27d26] rounded-2xl border border-white/10 transition-all group"
+                  className={cn(
+                    "w-full flex items-center gap-4 p-4 rounded-2xl border border-white/10 transition-all group focus:outline-none",
+                    selectedIndex === 0 ? "bg-[#f27d26] ring-4 ring-[#f27d26]/40" : "bg-white/5 hover:bg-white/10"
+                  )}
                 >
-                  <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center group-hover:bg-white/20">
+                  <div className={cn(
+                    "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
+                    selectedIndex === 0 ? "bg-white/20" : "bg-white/10 group-hover:bg-white/20"
+                  )}>
                     <MonitorPlay className="w-5 h-5 text-white" />
                   </div>
                   <div className="text-left">
                     <span className="block text-sm font-black uppercase italic leading-none mb-1">Player Interno</span>
-                    <span className="block text-[8px] font-bold text-white/40 uppercase tracking-widest group-hover:text-white/60">Reproduzir no App</span>
+                    <span className={cn(
+                      "block text-[8px] font-bold uppercase tracking-widest transition-colors",
+                      selectedIndex === 0 ? "text-white/80" : "text-white/40 group-hover:text-white/60"
+                    )}>Reproduzir no App</span>
                   </div>
                 </button>
 
@@ -64,14 +106,23 @@ export const PlayerChoiceModal: React.FC<PlayerChoiceModalProps> = ({ isOpen, on
                     onChoice('external');
                     onClose();
                   }}
-                  className="w-full flex items-center gap-4 p-4 bg-white/5 hover:bg-blue-600 rounded-2xl border border-white/10 transition-all group"
+                  className={cn(
+                    "w-full flex items-center gap-4 p-4 rounded-2xl border border-white/10 transition-all group focus:outline-none",
+                    selectedIndex === 1 ? "bg-blue-600 ring-4 ring-blue-600/40" : "bg-white/5 hover:bg-white/10"
+                  )}
                 >
-                  <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center group-hover:bg-white/20">
+                  <div className={cn(
+                    "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
+                    selectedIndex === 1 ? "bg-white/20" : "bg-white/10 group-hover:bg-white/20"
+                  )}>
                     <ExternalLink className="w-5 h-5 text-white" />
                   </div>
                   <div className="text-left">
                     <span className="block text-sm font-black uppercase italic leading-none mb-1">Player Externo</span>
-                    <span className="block text-[8px] font-bold text-white/40 uppercase tracking-widest group-hover:text-white/60">Abrir no VLC/MX Player</span>
+                    <span className={cn(
+                      "block text-[8px] font-bold uppercase tracking-widest transition-colors",
+                      selectedIndex === 1 ? "text-white/80" : "text-white/40 group-hover:text-white/60"
+                    )}>Abrir no VLC/MX Player</span>
                   </div>
                 </button>
               </div>

@@ -24,13 +24,15 @@ export const ChannelItem: React.FC<ChannelItemProps> = ({
   const longPressProps = useLongPress(
     () => onLongPress(channel),
     () => onClick(channel),
-    { threshold: 600 }
+    { 
+      threshold: 600,
+      onDoubleClick: () => onDoubleClick(channel)
+    }
   );
 
   return (
     <button
       {...longPressProps}
-      onDoubleClick={() => onDoubleClick(channel)}
       data-selected={isSelected}
       className={cn(
         "w-full flex items-center gap-3 px-4 py-2 transition-all border-b border-white/[0.02] focus:ring-4 focus:ring-[#f27d26] focus:outline-none focus:z-10",

@@ -13,9 +13,18 @@ interface VideoPlayerProps {
   onClose: () => void;
   title?: string;
   initialMinimized?: boolean;
+  isEmbedded?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
-export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, onClose, title, initialMinimized = false }) => {
+export const VideoPlayer: React.FC<VideoPlayerProps> = ({ 
+  url, 
+  onClose, 
+  title, 
+  initialMinimized = false,
+  isEmbedded = false,
+  onToggleFullscreen
+}) => {
   const [retryWithDirect, setRetryWithDirect] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(initialMinimized);
@@ -24,6 +33,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, onClose, title, i
   useEffect(() => {
     setIsMinimized(initialMinimized);
   }, [initialMinimized]);
+
+  const handleToggleFullscreen = () => {
+    if (onToggleFullscreen) {
+      onToggleFullscreen();
+    } else {
+      setIsMinimized(!isMinimized);
+    }
+  };
   const [engine, setEngine] = useState<'hlsjs' | 'shaka' | 'mpegts' | 'native'>('hlsjs');
   const [error, setError] = useState<string | null>(null);
 
@@ -98,9 +115,15 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, onClose, title, i
     <motion.div 
       id="player-container"
       layout
-      onDoubleClick={() => setIsMinimized(false)}
-      initial={isMinimized ? { width: '320px', height: '180px', bottom: '24px', right: '24px', borderRadius: '1.5rem' } : { inset: 0 }}
-      animate={isMinimized ? { 
+      layoutId={isEmbedded ? undefined : "player-overlay"}
+      onDoubleClick={handleToggleFullscreen}
+      initial={isEmbedded ? false : (isMinimized ? { width: '320px', height: '180px', bottom: '24px', right: '24px', borderRadius: '1.5rem' } : { inset: 0 })}
+      animate={isEmbedded ? {
+        width: '100%',
+        height: '100%',
+        borderRadius: '0.75rem',
+        boxShadow: 'none'
+      } : (isMinimized ? { 
         width: '320px', 
         height: '180px', 
         bottom: '24px', 
@@ -118,22 +141,23 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, onClose, title, i
         top: 0,
         borderRadius: 0,
         boxShadow: 'none'
-      }}
+      })}
       className={cn(
-        "fixed z-[100] bg-black flex flex-col items-center justify-center overflow-hidden border border-white/10",
-        !isMinimized && "inset-0"
+        isEmbedded ? "relative w-full h-full" : "fixed z-[100] inset-0",
+        "bg-black flex flex-col items-center justify-center overflow-hidden border border-white/10",
+        !isEmbedded && isMinimized && "inset-auto"
       )}
     >
       {/* Header Overlay */}
       <div className={cn(
         "absolute top-0 left-0 right-0 p-6 bg-gradient-to-b from-black/90 via-black/40 to-transparent z-[110] flex items-center justify-between transition-opacity duration-300 group",
-        isMinimized ? "p-3 opacity-0 hover:opacity-100" : "opacity-100 md:opacity-0 md:hover:opacity-100"
+        isMinimized ? "p-3 opacity-0 hover:opacity-100 focus-within:opacity-100" : "opacity-100 md:opacity-0 md:hover:opacity-100 md:focus-within:opacity-100"
       )}>
         <div className="flex items-center gap-4">
           <button 
             onClick={onClose}
             className={cn(
-              "bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-all border border-white/5",
+              "bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-all border border-white/5 focus:ring-2 focus:ring-[#f27d26] focus:outline-none",
               isMinimized ? "p-2" : "p-3"
             )}
             title="Sair do Player"
@@ -157,7 +181,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, onClose, title, i
                   key={e}
                   onClick={() => setEngine(e)}
                   className={cn(
-                    "px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all",
+                    "px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all focus:ring-2 focus:ring-[#f27d26] focus:outline-none",
                     engine === e ? "bg-[#f27d26] text-white shadow-lg" : "text-white/40 hover:text-white"
                   )}
                 >
@@ -169,7 +193,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, onClose, title, i
             <button 
               onClick={() => setDebug(!debug)}
               className={cn(
-                "px-3 py-2 rounded-xl backdrop-blur-md transition-all border text-[8px] font-black uppercase tracking-widest",
+                "px-3 py-2 rounded-xl backdrop-blur-md transition-all border text-[8px] font-black uppercase tracking-widest focus:ring-2 focus:ring-[#f27d26] focus:outline-none",
                 debug ? "bg-[#f27d26] border-[#f27d26] text-white" : "bg-white/10 border-white/5 text-white/60 hover:text-white"
               )}
             >
@@ -180,7 +204,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, onClose, title, i
               onClick={() => !isHttp && setRetryWithDirect(!retryWithDirect)}
               disabled={isHttp}
               className={cn(
-                "px-4 py-2 rounded-xl backdrop-blur-md transition-all border text-[10px] font-black uppercase tracking-widest flex items-center gap-2",
+                "px-4 py-2 rounded-xl backdrop-blur-md transition-all border text-[10px] font-black uppercase tracking-widest flex items-center gap-2 focus:ring-2 focus:ring-[#f27d26] focus:outline-none",
                 isHttp 
                   ? "bg-white/5 border-white/5 text-white/20 cursor-not-allowed" 
                   : "bg-white/10 hover:bg-white/20 border-white/5 text-white"
@@ -192,7 +216,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, onClose, title, i
 
             <button 
               onClick={openExternalPlayer}
-              className="p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-all border border-white/5"
+              className="p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-all border border-white/5 focus:ring-2 focus:ring-[#f27d26] focus:outline-none"
               title="Abrir no Player Externo"
             >
               <ExternalLink className="w-5 h-5 text-white" />
@@ -200,7 +224,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, onClose, title, i
 
             <button 
               onClick={() => setIsMinimized(true)}
-              className="p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-all border border-white/5"
+              className="p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-all border border-white/5 focus:ring-2 focus:ring-[#f27d26] focus:outline-none"
               title="Minimizar"
             >
               <Minimize className="w-5 h-5 text-white" />
@@ -208,7 +232,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, onClose, title, i
 
             <button 
               onClick={toggleFullscreen}
-              className="p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-all border border-white/5"
+              className="p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-all border border-white/5 focus:ring-2 focus:ring-[#f27d26] focus:outline-none"
             >
               {isFullscreen ? <Minimize className="w-5 h-5 text-white" /> : <Maximize className="w-5 h-5 text-white" />}
             </button>
@@ -219,7 +243,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, onClose, title, i
           <div className="flex items-center gap-2">
             <button 
               onClick={() => setIsMinimized(false)}
-              className="p-2 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-all border border-white/5"
+              className="p-2 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-all border border-white/5 focus:ring-2 focus:ring-[#f27d26] focus:outline-none"
               title="Maximizar"
             >
               <Maximize className="w-4 h-4 text-white" />

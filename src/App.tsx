@@ -58,14 +58,26 @@ export default function App() {
   // Spatial Navigation for TV Remote
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Prevent background navigation if modal is open or player is fullscreen
+      if (showChoiceModal || showAbout || (isPlaying && !playerMinimized)) return;
+
       const active = document.activeElement;
       if (!active) return;
 
-      if (e.key === 'Enter' || e.keyCode === 13) {
+      // OK / Enter / Select keys
+      if (e.key === 'Enter' || e.keyCode === 13 || e.key === 'Select' || e.keyCode === 23 || e.key === ' ' || e.keyCode === 32) {
         // Trigger click on active element if it's a button
         if (active.tagName === 'BUTTON') {
           e.preventDefault();
-          (active as HTMLElement).click();
+          
+          // Visual feedback for remote users
+          const btn = active as HTMLElement;
+          btn.style.transform = 'scale(0.95)';
+          setTimeout(() => {
+            btn.style.transform = '';
+          }, 100);
+
+          btn.click();
           return;
         }
         // Handle login submit on Enter in input fields
@@ -149,9 +161,20 @@ export default function App() {
       }
     };
 
+    const handleFocus = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'BUTTON' || target.tagName === 'INPUT') {
+        target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [view]);
+    window.addEventListener('focus', handleFocus, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('focus', handleFocus, true);
+    };
+  }, [view, showInput, isPlaying]);
 
   useEffect(() => {
     if (view === 'live') {
@@ -743,7 +766,17 @@ export default function App() {
             <div className="flex-1 flex flex-col p-5 overflow-y-auto custom-scrollbar">
               {/* Channel Banner/Logo Area */}
               <div className="aspect-video bg-zinc-900/50 relative overflow-hidden rounded-xl border border-white/5 shadow-2xl flex items-center justify-center group flex-shrink-0 max-h-[45%]">
-                {selectedChannel ? (
+                {isPlaying && playerMinimized && channelToPlay?.id === selectedChannel?.id ? (
+                  <VideoPlayer 
+                    key={channelToPlay.id}
+                    url={channelToPlay.url}
+                    title={channelToPlay.name}
+                    initialMinimized={true}
+                    isEmbedded={true}
+                    onClose={() => setIsPlaying(false)} 
+                    onToggleFullscreen={() => setPlayerMinimized(false)}
+                  />
+                ) : selectedChannel ? (
                   <div className="relative w-full h-full flex items-center justify-center p-6">
                     <div className="absolute inset-0 opacity-10 blur-3xl bg-[#f27d26]" />
                     <img 
@@ -844,13 +877,14 @@ export default function App() {
       `}} />
 
       {/* Video Player Overlay */}
-      {isPlaying && channelToPlay && (
+      {isPlaying && !playerMinimized && channelToPlay && (
         <VideoPlayer 
           key={channelToPlay.id}
           url={channelToPlay.url}
           title={channelToPlay.name}
-          initialMinimized={playerMinimized}
+          initialMinimized={false}
           onClose={() => setIsPlaying(false)} 
+          onToggleFullscreen={() => setPlayerMinimized(true)}
         />
       )}
 
