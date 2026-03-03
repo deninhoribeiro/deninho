@@ -321,7 +321,7 @@
 </head>
 <body>
     <div id="player-wrapper" class="show-controls">
-        <video id="video" playsinline></video>
+        <video id="video" controls autoplay muted playsinline width="100%"></video>
 
         <!-- Back Button Top -->
         <button class="btn" id="back-btn-top" onclick="exitPlayer()" title="Voltar">
@@ -523,8 +523,12 @@
 
             log(`Iniciando player (${currentEngine}) para: ${streamUrl}`);
             
-            // Force muted for autoplay
+            // Force muted and autoplay attributes for TV compatibility
             video.muted = true;
+            video.autoplay = true;
+            video.setAttribute('playsinline', '');
+            video.setAttribute('webkit-playsinline', '');
+            
             updateVolumeUI();
 
             // Timeout para carregamento inicial
@@ -534,6 +538,60 @@
                     showError("O sinal está demorando muito. Tente outro modo de reprodução.");
                 }
             }, 25000);
+
+            // Function to start HLS.js as fallback
+            function startHlsJs() {
+                log("Iniciando HLS.js...");
+                hls = new Hls({
+                    enableWorker: true,
+                    lowLatencyMode: true,
+                    backBufferLength: 90,
+                    maxBufferLength: 30,
+                    manifestLoadingMaxRetry: 10,
+                    levelLoadingMaxRetry: 10,
+                    xhrSetup: function(xhr, url) {
+                        xhr.withCredentials = false;
+                    }
+                });
+
+                hls.loadSource(streamUrl);
+                hls.attachMedia(video);
+
+                hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+                    log("Manifesto HLS carregado com sucesso!");
+                    clearTimeout(loadTimeout);
+                    loading.style.display = 'none';
+                    video.play().catch((err) => {
+                        log(`Autoplay bloqueado: ${err.message}`, "warn");
+                        bigPlay.style.display = 'flex';
+                    });
+
+                    if (data.levels && data.levels.length > 1) {
+                        setupQualityMenu(data.levels);
+                    }
+                });
+
+                hls.on(Hls.Events.ERROR, (event, data) => {
+                    log(`Erro HLS.js: ${data.details} (${data.type})`, data.fatal ? "error" : "warn");
+                    if (data.fatal) {
+                        clearTimeout(loadTimeout);
+                        switch (data.type) {
+                            case Hls.ErrorTypes.NETWORK_ERROR:
+                                log("Erro de rede fatal, tentando recuperar...");
+                                hls.startLoad();
+                                break;
+                            case Hls.ErrorTypes.MEDIA_ERROR:
+                                log("Erro de mídia fatal, tentando recuperar...");
+                                hls.recoverMediaError();
+                                break;
+                            default:
+                                showError("Erro de conexão. Tente o modo Shaka ou Nativo.");
+                                hls.destroy();
+                                break;
+                        }
+                    }
+                });
+            }
 
             if (currentEngine === 'mpegts' && mpegts.getFeatureList().mseLivePlayback) {
                 log("Usando MPEG-TS Engine (Flv.js based)");
@@ -571,57 +629,34 @@
                     log(`Erro ao iniciar MPEG-TS: ${e.message}`, "error");
                     showError("Falha ao iniciar player TS.");
                 }
-            } else if (currentEngine === 'hlsjs' && Hls.isSupported()) {
-                log("Usando HLS.js engine");
-                hls = new Hls({
-                    enableWorker: true,
-                    lowLatencyMode: true,
-                    backBufferLength: 90,
-                    maxBufferLength: 30,
-                    manifestLoadingMaxRetry: 10,
-                    levelLoadingMaxRetry: 10,
-                    xhrSetup: function(xhr, url) {
-                        xhr.withCredentials = false;
-                    }
-                });
-
-                hls.loadSource(streamUrl);
-                hls.attachMedia(video);
-
-                hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
-                    log("Manifesto HLS carregado com sucesso!");
-                    clearTimeout(loadTimeout);
-                    loading.style.display = 'none';
-                    video.play().catch((err) => {
-                        log(`Autoplay bloqueado: ${err.message}`, "warn");
-                        bigPlay.style.display = 'flex';
-                    });
-
-                    if (data.levels && data.levels.length > 1) {
-                        setupQualityMenu(data.levels);
-                    }
-                });
-
-                hls.on(Hls.Events.ERROR, (event, data) => {
-                    log(`Erro HLS: ${data.details} (${data.type})`, data.fatal ? "error" : "warn");
-                    if (data.fatal) {
+            } else if (currentEngine === 'hlsjs') {
+                log("Detectando suporte HLS...");
+                // Prioritize Native HLS for Samsung Tizen / Safari
+                if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                    log("Usando HLS Nativo (Samsung/Safari)");
+                    video.src = streamUrl;
+                    video.onloadedmetadata = () => {
+                        log("Metadados carregados no modo nativo");
                         clearTimeout(loadTimeout);
-                        switch (data.type) {
-                            case Hls.ErrorTypes.NETWORK_ERROR:
-                                log("Erro de rede fatal, tentando recuperar...");
-                                hls.startLoad();
-                                break;
-                            case Hls.ErrorTypes.MEDIA_ERROR:
-                                log("Erro de mídia fatal, tentando recuperar...");
-                                hls.recoverMediaError();
-                                break;
-                            default:
-                                showError("Erro de conexão. Tente o modo Shaka ou Nativo.");
-                                hls.destroy();
-                                break;
+                        loading.style.display = 'none';
+                        video.play().catch((err) => {
+                            log(`Autoplay nativo bloqueado: ${err.message}`, "warn");
+                            bigPlay.style.display = 'flex';
+                        });
+                    };
+                    video.onerror = () => {
+                        log("Erro no HLS Nativo, tentando fallback para HLS.js", "warn");
+                        if (Hls.isSupported()) {
+                            startHlsJs();
+                        } else {
+                            showError("Erro no modo nativo e HLS.js não suportado.");
                         }
-                    }
-                });
+                    };
+                } else if (Hls.isSupported()) {
+                    startHlsJs();
+                } else {
+                    showError("HLS não suportado neste navegador.");
+                }
             } else if (currentEngine === 'shaka') {
                 log("Usando Shaka Player (Exo-like)");
                 shaka.polyfill.installAll();
