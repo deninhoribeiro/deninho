@@ -16,6 +16,10 @@ import { parseM3U, M3UChannel } from './utils/m3uParser';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { VideoPlayer } from './components/VideoPlayer';
+import { PlayerChoiceModal } from './components/PlayerChoiceModal';
+import { ChannelItem } from './components/ChannelItem';
+import { PlayButton } from './components/PlayButton';
+import { useLongPress } from './hooks/useLongPress';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -37,6 +41,9 @@ export default function App() {
     localStorage.getItem('iptv_m3u_url') ? 'live' : 'dashboard'
   );
   const [isPlaying, setIsPlaying] = useState(false);
+  const [showChoiceModal, setShowChoiceModal] = useState(false);
+  const [channelToPlay, setChannelToPlay] = useState<M3UChannel | null>(null);
+  const [playerType, setPlayerType] = useState<'internal' | 'external'>('internal');
   const firstCategoryRef = useRef<HTMLButtonElement>(null);
   const dashboardLiveRef = useRef<HTMLButtonElement>(null);
   const channelListRef = useRef<HTMLDivElement>(null);
@@ -148,12 +155,41 @@ export default function App() {
 
   const handleChannelSelect = (channel: M3UChannel) => {
     setSelectedChannel(channel);
-    handlePlayChannel(channel.url);
+    // When selecting, we just show the info, don't play immediately if we want long press to work
+    // But the user said "interno sempre abrir de primeira", so maybe they want it to play on click
+    // I'll keep the click behavior as "play internal" and long press as "choice"
+    handlePlayChannel(channel, 'internal');
   };
 
-  const handlePlayChannel = (url: string) => {
-    if (!url) return;
-    setIsPlaying(true);
+  const handlePlayChannel = (channel: M3UChannel, type: 'internal' | 'external' = 'internal') => {
+    if (!channel?.url) return;
+    setChannelToPlay(channel);
+    setPlayerType(type);
+    
+    if (type === 'internal') {
+      setIsPlaying(true);
+    } else {
+      openExternalPlayer(channel.url);
+    }
+  };
+
+  const openExternalPlayer = (url: string) => {
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    if (isAndroid) {
+      const intentUrl = `intent:${url}#Intent;action=android.intent.action.VIEW;type=video/*;end`;
+      window.location.href = intentUrl;
+    } else {
+      const win = window.open(url, '_blank');
+      if (!win) {
+        alert("Por favor, permita popups para abrir o player externo ou copie o link: " + url);
+      }
+    }
+  };
+
+  const handlePlayChoice = (choice: 'internal' | 'external') => {
+    if (channelToPlay) {
+      handlePlayChannel(channelToPlay, choice);
+    }
   };
 
   // Update clock
@@ -668,35 +704,17 @@ export default function App() {
           <section ref={channelListRef} className="w-60 flex flex-col bg-[#212124] border-r border-white/5 flex-shrink-0">
             <div className="flex-1 overflow-y-auto custom-scrollbar">
               {filteredChannels.map((channel, index) => (
-                <button
+                <ChannelItem
                   key={channel.id}
-                  onClick={() => handleChannelSelect(channel)}
-                  data-selected={selectedChannel?.id === channel.id}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-4 py-2 transition-all border-b border-white/[0.02] focus:ring-4 focus:ring-[#f27d26] focus:outline-none focus:z-10",
-                    selectedChannel?.id === channel.id 
-                      ? "bg-[#f27d26] text-white" 
-                      : "text-white/80 hover:bg-white/5"
-                  )}
-                >
-                  <span className="text-[8px] font-bold opacity-40 w-5">{index + 1}</span>
-                  <div className="w-6 h-6 bg-black/40 rounded flex items-center justify-center p-1 border border-white/10">
-                    {channel.logo ? (
-                      <img 
-                        src={channel.logo} 
-                        alt="" 
-                        className="max-w-full max-h-full object-contain" 
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(channel.name)}&backgroundColor=1a1a1a&textColor=ffffff`;
-                        }}
-                      />
-                    ) : (
-                      <Tv className="w-3 h-3 text-white/10" />
-                    )}
-                  </div>
-                  <span className="text-[10px] font-bold truncate flex-1 text-left uppercase tracking-tight">{channel.name}</span>
-                </button>
+                  channel={channel}
+                  index={index}
+                  isSelected={selectedChannel?.id === channel.id}
+                  onClick={handleChannelSelect}
+                  onLongPress={(ch) => {
+                    setChannelToPlay(ch);
+                    setShowChoiceModal(true);
+                  }}
+                />
               ))}
             </div>
           </section>
@@ -715,16 +733,13 @@ export default function App() {
                       className="max-w-[45%] max-h-[45%] object-contain relative z-10 drop-shadow-2xl" 
                       referrerPolicy="no-referrer"
                     />
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => handlePlayChannel(selectedChannel.url)}
-                      className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity focus:outline-none"
-                    >
-                      <div className="w-14 h-14 bg-[#f27d26] rounded-full flex items-center justify-center shadow-2xl shadow-[#f27d26]/40 ring-4 ring-white/20">
-                        <Play className="w-7 h-7 text-white fill-current ml-1" />
-                      </div>
-                    </motion.button>
+                    <PlayButton
+                      onClick={() => handlePlayChannel(selectedChannel, 'internal')}
+                      onLongPress={() => {
+                        setChannelToPlay(selectedChannel);
+                        setShowChoiceModal(true);
+                      }}
+                    />
                   </div>
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center gap-3">
@@ -754,7 +769,7 @@ export default function App() {
                     <span className="text-[7px] font-bold text-white/40 uppercase tracking-widest">Full HD 1080p</span>
                   </div>
                   <h2 
-                    onClick={() => handlePlayChannel(selectedChannel.url)}
+                    onClick={() => handlePlayChannel(selectedChannel, 'internal')}
                     className="text-2xl font-black text-white italic uppercase tracking-tighter leading-none mb-3 cursor-pointer hover:text-[#f27d26] transition-colors"
                   >
                     {selectedChannel.name}
@@ -770,13 +785,15 @@ export default function App() {
               {/* Bottom Actions */}
               <div className="flex flex-col gap-3 mt-auto pt-4">
                 {selectedChannel ? (
-                  <button 
-                    onClick={() => handlePlayChannel(selectedChannel.url)}
-                    className="py-3.5 bg-[#f27d26] hover:bg-[#e67622] text-white font-black rounded-lg transition-all text-[9px] uppercase tracking-[0.2em] shadow-xl shadow-[#f27d26]/20 flex items-center justify-center gap-2 focus:ring-4 focus:ring-white/30 focus:outline-none"
-                  >
-                    <MonitorPlay className="w-3.5 h-3.5" />
-                    Reproduzir Canal
-                  </button>
+                  <PlayButton
+                    variant="full"
+                    label="Reproduzir Canal"
+                    onClick={() => handlePlayChannel(selectedChannel, 'internal')}
+                    onLongPress={() => {
+                      setChannelToPlay(selectedChannel);
+                      setShowChoiceModal(true);
+                    }}
+                  />
                 ) : (
                   <div className="w-full py-3.5 bg-white/5 border border-white/5 rounded-xl flex items-center justify-center">
                     <span className="text-[7px] font-black text-white/10 uppercase tracking-[0.3em]">Aguardando Seleção</span>
@@ -805,14 +822,22 @@ export default function App() {
       `}} />
 
       {/* Video Player Overlay */}
-      {isPlaying && selectedChannel && (
+      {isPlaying && channelToPlay && (
         <VideoPlayer 
-          key={selectedChannel.id}
-          url={selectedChannel.url}
-          title={selectedChannel.name}
+          key={channelToPlay.id}
+          url={channelToPlay.url}
+          title={channelToPlay.name}
+          initialMinimized={true}
           onClose={() => setIsPlaying(false)} 
         />
       )}
+
+      <PlayerChoiceModal
+        isOpen={showChoiceModal}
+        onClose={() => setShowChoiceModal(false)}
+        onChoice={handlePlayChoice}
+        title={channelToPlay?.name || 'Canal'}
+      />
     </div>
   );
 }

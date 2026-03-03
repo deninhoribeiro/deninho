@@ -12,11 +12,13 @@ interface VideoPlayerProps {
   url: string;
   onClose: () => void;
   title?: string;
+  initialMinimized?: boolean;
 }
 
-export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, onClose, title }) => {
+export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, onClose, title, initialMinimized = false }) => {
   const [retryWithDirect, setRetryWithDirect] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(initialMinimized);
   const [debug, setDebug] = useState(false);
   const [engine, setEngine] = useState<'hlsjs' | 'shaka' | 'mpegts' | 'native'>('hlsjs');
   const [error, setError] = useState<string | null>(null);
@@ -89,87 +91,145 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, onClose, title })
   }, [onClose]);
 
   return (
-    <div 
+    <motion.div 
       id="player-container"
-      className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center overflow-hidden"
+      layout
+      initial={isMinimized ? { width: '320px', height: '180px', bottom: '24px', right: '24px', borderRadius: '1.5rem' } : { inset: 0 }}
+      animate={isMinimized ? { 
+        width: '320px', 
+        height: '180px', 
+        bottom: '24px', 
+        right: '24px', 
+        left: 'auto',
+        top: 'auto',
+        borderRadius: '1.5rem',
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+      } : { 
+        width: '100%', 
+        height: '100%', 
+        bottom: 0, 
+        right: 0, 
+        left: 0,
+        top: 0,
+        borderRadius: 0,
+        boxShadow: 'none'
+      }}
+      className={cn(
+        "fixed z-[100] bg-black flex flex-col items-center justify-center overflow-hidden border border-white/10",
+        !isMinimized && "inset-0"
+      )}
     >
       {/* Header Overlay */}
-      <div className="absolute top-0 left-0 right-0 p-6 bg-gradient-to-b from-black/90 via-black/40 to-transparent z-[110] flex items-center justify-between transition-opacity duration-300 group opacity-100 md:opacity-0 md:hover:opacity-100">
+      <div className={cn(
+        "absolute top-0 left-0 right-0 p-6 bg-gradient-to-b from-black/90 via-black/40 to-transparent z-[110] flex items-center justify-between transition-opacity duration-300 group",
+        isMinimized ? "p-3 opacity-0 hover:opacity-100" : "opacity-100 md:opacity-0 md:hover:opacity-100"
+      )}>
         <div className="flex items-center gap-4">
           <button 
             onClick={onClose}
-            className="p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-all border border-white/5"
+            className={cn(
+              "bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-all border border-white/5",
+              isMinimized ? "p-2" : "p-3"
+            )}
             title="Sair do Player"
           >
-            <ArrowLeft className="w-6 h-6 text-white" />
+            <ArrowLeft className={cn("text-white", isMinimized ? "w-4 h-4" : "w-6 h-6")} />
           </button>
           <div className="flex flex-col">
             <span className="text-[8px] font-black text-[#f27d26] uppercase tracking-widest mb-0.5">Deninho TV Pro</span>
-            <h2 className="text-xl font-black text-white italic uppercase tracking-tighter leading-none">{title || 'Reproduzindo...'}</h2>
+            <h2 className={cn(
+              "font-black text-white italic uppercase tracking-tighter leading-none",
+              isMinimized ? "text-xs" : "text-xl"
+            )}>{title || 'Reproduzindo...'}</h2>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex bg-white/10 rounded-xl p-1 backdrop-blur-md border border-white/5">
-            {(['hlsjs', 'shaka', 'mpegts', 'native'] as const).map((e) => (
-              <button
-                key={e}
-                onClick={() => setEngine(e)}
-                className={cn(
-                  "px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all",
-                  engine === e ? "bg-[#f27d26] text-white shadow-lg" : "text-white/40 hover:text-white"
-                )}
-              >
-                {e === 'hlsjs' ? 'HLS' : e === 'shaka' ? 'Shaka' : e === 'mpegts' ? 'TS' : 'Nativo'}
-              </button>
-            ))}
+        {!isMinimized && (
+          <div className="flex items-center gap-3">
+            <div className="flex bg-white/10 rounded-xl p-1 backdrop-blur-md border border-white/5">
+              {(['hlsjs', 'shaka', 'mpegts', 'native'] as const).map((e) => (
+                <button
+                  key={e}
+                  onClick={() => setEngine(e)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all",
+                    engine === e ? "bg-[#f27d26] text-white shadow-lg" : "text-white/40 hover:text-white"
+                  )}
+                >
+                  {e === 'hlsjs' ? 'HLS' : e === 'shaka' ? 'Shaka' : e === 'mpegts' ? 'TS' : 'Nativo'}
+                </button>
+              ))}
+            </div>
+            
+            <button 
+              onClick={() => setDebug(!debug)}
+              className={cn(
+                "px-3 py-2 rounded-xl backdrop-blur-md transition-all border text-[8px] font-black uppercase tracking-widest",
+                debug ? "bg-[#f27d26] border-[#f27d26] text-white" : "bg-white/10 border-white/5 text-white/60 hover:text-white"
+              )}
+            >
+              Debug
+            </button>
+
+            <button 
+              onClick={() => !isHttp && setRetryWithDirect(!retryWithDirect)}
+              disabled={isHttp}
+              className={cn(
+                "px-4 py-2 rounded-xl backdrop-blur-md transition-all border text-[10px] font-black uppercase tracking-widest flex items-center gap-2",
+                isHttp 
+                  ? "bg-white/5 border-white/5 text-white/20 cursor-not-allowed" 
+                  : "bg-white/10 hover:bg-white/20 border-white/5 text-white"
+              )}
+            >
+              <RotateCcw className="w-3 h-3" />
+              {isHttp ? 'Proxy Forçado (HTTP)' : (retryWithDirect ? 'Usar Proxy' : 'Direto')}
+            </button>
+
+            <button 
+              onClick={openExternalPlayer}
+              className="p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-all border border-white/5"
+              title="Abrir no Player Externo"
+            >
+              <ExternalLink className="w-5 h-5 text-white" />
+            </button>
+
+            <button 
+              onClick={() => setIsMinimized(true)}
+              className="p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-all border border-white/5"
+              title="Minimizar"
+            >
+              <Minimize className="w-5 h-5 text-white" />
+            </button>
+
+            <button 
+              onClick={toggleFullscreen}
+              className="p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-all border border-white/5"
+            >
+              {isFullscreen ? <Minimize className="w-5 h-5 text-white" /> : <Maximize className="w-5 h-5 text-white" />}
+            </button>
           </div>
-          
-          <button 
-            onClick={() => setDebug(!debug)}
-            className={cn(
-              "px-3 py-2 rounded-xl backdrop-blur-md transition-all border text-[8px] font-black uppercase tracking-widest",
-              debug ? "bg-[#f27d26] border-[#f27d26] text-white" : "bg-white/10 border-white/5 text-white/60 hover:text-white"
-            )}
-          >
-            Debug
-          </button>
+        )}
 
-          <button 
-            onClick={() => !isHttp && setRetryWithDirect(!retryWithDirect)}
-            disabled={isHttp}
-            className={cn(
-              "px-4 py-2 rounded-xl backdrop-blur-md transition-all border text-[10px] font-black uppercase tracking-widest flex items-center gap-2",
-              isHttp 
-                ? "bg-white/5 border-white/5 text-white/20 cursor-not-allowed" 
-                : "bg-white/10 hover:bg-white/20 border-white/5 text-white"
-            )}
-          >
-            <RotateCcw className="w-3 h-3" />
-            {isHttp ? 'Proxy Forçado (HTTP)' : (retryWithDirect ? 'Usar Proxy' : 'Direto')}
-          </button>
-
-          <button 
-            onClick={openExternalPlayer}
-            className="p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-all border border-white/5"
-            title="Abrir no Player Externo"
-          >
-            <ExternalLink className="w-5 h-5 text-white" />
-          </button>
-
-          <button 
-            onClick={toggleFullscreen}
-            className="p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-all border border-white/5"
-          >
-            {isFullscreen ? <Minimize className="w-5 h-5 text-white" /> : <Maximize className="w-5 h-5 text-white" />}
-          </button>
-        </div>
+        {isMinimized && (
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setIsMinimized(false)}
+              className="p-2 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-all border border-white/5"
+              title="Maximizar"
+            >
+              <Maximize className="w-4 h-4 text-white" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* The Iframe Player */}
       <iframe 
         src={playerIframeUrl}
-        className="w-full h-full border-none"
+        className={cn(
+          "w-full h-full border-none",
+          isMinimized && "pointer-events-none"
+        )}
         allow="autoplay; fullscreen; encrypted-media"
         title="Deninho TV Player"
       />
@@ -194,6 +254,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, onClose, title })
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 };
