@@ -15,11 +15,8 @@ import {
 import { parseM3U, M3UChannel } from './utils/m3uParser';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { VideoPlayer } from './components/VideoPlayer';
-import { PlayerChoiceModal } from './components/PlayerChoiceModal';
 import { ChannelItem } from './components/ChannelItem';
 import { PlayButton } from './components/PlayButton';
-import { useLongPress } from './hooks/useLongPress';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -40,11 +37,6 @@ export default function App() {
   const [view, setView] = useState<'dashboard' | 'live'>(() => 
     localStorage.getItem('iptv_m3u_url') ? 'live' : 'dashboard'
   );
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [playerMinimized, setPlayerMinimized] = useState(true);
-  const [showChoiceModal, setShowChoiceModal] = useState(false);
-  const [channelToPlay, setChannelToPlay] = useState<M3UChannel | null>(null);
-  const [playerType, setPlayerType] = useState<'internal' | 'external'>('internal');
   const firstCategoryRef = useRef<HTMLButtonElement>(null);
   const dashboardLiveRef = useRef<HTMLButtonElement>(null);
   const channelListRef = useRef<HTMLDivElement>(null);
@@ -58,8 +50,8 @@ export default function App() {
   // Spatial Navigation for TV Remote
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Prevent background navigation if modal is open or player is fullscreen
-      if (showChoiceModal || showAbout || (isPlaying && !playerMinimized)) return;
+      // Prevent background navigation if modal is open
+      if (showAbout) return;
 
       const active = document.activeElement;
       if (!active) return;
@@ -90,11 +82,9 @@ export default function App() {
 
       if (view === 'live') {
         if (e.key === 'Backspace' || e.key === 'Escape' || e.keyCode === 4 || e.keyCode === 27) {
-          if (!isPlaying) {
-            e.preventDefault();
-            setView('dashboard');
-            return;
-          }
+          e.preventDefault();
+          setView('dashboard');
+          return;
         }
 
         if (e.key === 'ArrowRight') {
@@ -174,7 +164,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('focus', handleFocus, true);
     };
-  }, [view, showInput, isPlaying]);
+  }, [view, showInput]);
 
   useEffect(() => {
     if (view === 'live') {
@@ -194,24 +184,12 @@ export default function App() {
 
   const handleChannelSelect = (channel: M3UChannel) => {
     setSelectedChannel(channel);
-    handlePlayChannel(channel, 'internal', true);
+    handlePlayChannel(channel);
   };
 
-  const handleChannelDoubleClick = (channel: M3UChannel) => {
-    handlePlayChannel(channel, 'internal', false);
-  };
-
-  const handlePlayChannel = (channel: M3UChannel, type: 'internal' | 'external' = 'internal', minimized = true) => {
+  const handlePlayChannel = (channel: M3UChannel) => {
     if (!channel?.url) return;
-    setChannelToPlay(channel);
-    setPlayerType(type);
-    setPlayerMinimized(minimized);
-    
-    if (type === 'internal') {
-      setIsPlaying(true);
-    } else {
-      openExternalPlayer(channel.url);
-    }
+    openExternalPlayer(channel.url);
   };
 
   const openExternalPlayer = (url: string) => {
@@ -227,10 +205,13 @@ export default function App() {
     }
   };
 
-  const handlePlayChoice = (choice: 'internal' | 'external') => {
-    if (channelToPlay) {
-      handlePlayChannel(channelToPlay, choice);
-    }
+  const handleLogout = () => {
+    localStorage.removeItem('iptv_m3u_url');
+    localStorage.removeItem('iptv_username');
+    setChannels([]);
+    setSelectedChannel(null);
+    setShowInput(true);
+    setView('dashboard');
   };
 
   // Update clock
@@ -298,15 +279,6 @@ export default function App() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('iptv_m3u_url');
-    localStorage.removeItem('iptv_username');
-    setChannels([]);
-    setSelectedChannel(null);
-    setShowInput(true);
-    setView('dashboard');
   };
 
   useEffect(() => {
@@ -751,11 +723,6 @@ export default function App() {
                   index={index}
                   isSelected={selectedChannel?.id === channel.id}
                   onClick={handleChannelSelect}
-                  onDoubleClick={handleChannelDoubleClick}
-                  onLongPress={(ch) => {
-                    setChannelToPlay(ch);
-                    setShowChoiceModal(true);
-                  }}
                 />
               ))}
             </div>
@@ -766,17 +733,7 @@ export default function App() {
             <div className="flex-1 flex flex-col p-5 overflow-y-auto custom-scrollbar">
               {/* Channel Banner/Logo Area */}
               <div className="aspect-video bg-zinc-900/50 relative overflow-hidden rounded-xl border border-white/5 shadow-2xl flex items-center justify-center group flex-shrink-0 max-h-[45%]">
-                {isPlaying && playerMinimized && channelToPlay?.id === selectedChannel?.id ? (
-                  <VideoPlayer 
-                    key={channelToPlay.id}
-                    url={channelToPlay.url}
-                    title={channelToPlay.name}
-                    initialMinimized={true}
-                    isEmbedded={true}
-                    onClose={() => setIsPlaying(false)} 
-                    onToggleFullscreen={() => setPlayerMinimized(false)}
-                  />
-                ) : selectedChannel ? (
+                {selectedChannel ? (
                   <div className="relative w-full h-full flex items-center justify-center p-6">
                     <div className="absolute inset-0 opacity-10 blur-3xl bg-[#f27d26]" />
                     <img 
@@ -786,12 +743,7 @@ export default function App() {
                       referrerPolicy="no-referrer"
                     />
                     <PlayButton
-                      onClick={() => handlePlayChannel(selectedChannel, 'internal', true)}
-                      onDoubleClick={() => handlePlayChannel(selectedChannel, 'internal', false)}
-                      onLongPress={() => {
-                        setChannelToPlay(selectedChannel);
-                        setShowChoiceModal(true);
-                      }}
+                      onClick={() => handlePlayChannel(selectedChannel)}
                     />
                   </div>
                 ) : (
@@ -822,14 +774,13 @@ export default function App() {
                     <span className="text-[7px] font-bold text-white/40 uppercase tracking-widest">Full HD 1080p</span>
                   </div>
                   <h2 
-                    onClick={() => handlePlayChannel(selectedChannel, 'internal', true)}
-                    onDoubleClick={() => handlePlayChannel(selectedChannel, 'internal', false)}
+                    onClick={() => handlePlayChannel(selectedChannel)}
                     className="text-2xl font-black text-white italic uppercase tracking-tighter leading-none mb-3 cursor-pointer hover:text-[#f27d26] transition-colors"
                   >
                     {selectedChannel.name}
                   </h2>
                   <p className="text-white/40 text-[10px] leading-relaxed max-w-xs">
-                    Canal pronto para reprodução. Clique no botão abaixo ou no logo para iniciar o player interno.
+                    Canal pronto para reprodução. Clique no botão acima ou no logo para abrir no player externo.
                   </p>
                 </motion.div>
               )}
@@ -842,12 +793,7 @@ export default function App() {
                   <PlayButton
                     variant="full"
                     label="Reproduzir Canal"
-                    onClick={() => handlePlayChannel(selectedChannel, 'internal', true)}
-                    onDoubleClick={() => handlePlayChannel(selectedChannel, 'internal', false)}
-                    onLongPress={() => {
-                      setChannelToPlay(selectedChannel);
-                      setShowChoiceModal(true);
-                    }}
+                    onClick={() => handlePlayChannel(selectedChannel)}
                   />
                 ) : (
                   <div className="w-full py-3.5 bg-white/5 border border-white/5 rounded-xl flex items-center justify-center">
@@ -876,24 +822,7 @@ export default function App() {
         }
       `}} />
 
-      {/* Video Player Overlay */}
-      {isPlaying && !playerMinimized && channelToPlay && (
-        <VideoPlayer 
-          key={channelToPlay.id}
-          url={channelToPlay.url}
-          title={channelToPlay.name}
-          initialMinimized={false}
-          onClose={() => setIsPlaying(false)} 
-          onToggleFullscreen={() => setPlayerMinimized(true)}
-        />
-      )}
 
-      <PlayerChoiceModal
-        isOpen={showChoiceModal}
-        onClose={() => setShowChoiceModal(false)}
-        onChoice={handlePlayChoice}
-        title={channelToPlay?.name || 'Canal'}
-      />
     </div>
   );
 }

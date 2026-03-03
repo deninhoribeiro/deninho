@@ -2,37 +2,23 @@ import React from 'react';
 import { Tv } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { M3UChannel } from '../utils/m3uParser';
-import { useLongPress } from '../hooks/useLongPress';
 
 interface ChannelItemProps {
   channel: M3UChannel;
   index: number;
   isSelected: boolean;
   onClick: (channel: M3UChannel) => void;
-  onDoubleClick: (channel: M3UChannel) => void;
-  onLongPress: (channel: M3UChannel) => void;
 }
 
 export const ChannelItem: React.FC<ChannelItemProps> = ({ 
   channel, 
   index, 
   isSelected, 
-  onClick, 
-  onDoubleClick,
-  onLongPress 
+  onClick
 }) => {
-  const longPressProps = useLongPress(
-    () => onLongPress(channel),
-    () => onClick(channel),
-    { 
-      threshold: 600,
-      onDoubleClick: () => onDoubleClick(channel)
-    }
-  );
-
   return (
     <button
-      {...longPressProps}
+      onClick={() => onClick(channel)}
       data-selected={isSelected}
       className={cn(
         "w-full flex items-center gap-3 px-4 py-2 transition-all border-b border-white/[0.02] focus:ring-4 focus:ring-[#f27d26] focus:outline-none focus:z-10",
